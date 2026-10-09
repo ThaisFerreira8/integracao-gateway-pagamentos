@@ -1,14 +1,18 @@
-import { Module } from '@nestjs/common';
+import {
+  Module,
+  type MiddlewareConsumer,
+  type NestModule,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CorrelacaoRequisicoesMiddleware } from './comum/middlewares/correlacao-requisicoes.middleware';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      
       override: true,
     }),
 
@@ -29,4 +33,8 @@ import { AppService } from './app.service';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumidor: MiddlewareConsumer): void {
+    consumidor.apply(CorrelacaoRequisicoesMiddleware).forRoutes('{*caminho}');
+  }
+}
