@@ -24,7 +24,7 @@ export class CarteiraController {
   @ApiOperation({
     summary: 'Consultar extrato do gateway com filtros documentados',
     description:
-      'Sem page, offset, cursor ou consolidação local. O envelope vazio está confirmado; itens não vazios são rejeitados com HTTP 502 até confirmar seu contrato, evitando exposição de dados desconhecidos.',
+      'Sem page, offset, cursor ou consolidação local. Retorna somente campos comprovados dos itens, sem metadados sensíveis.',
   })
   consultarExtrato(
     @Req() requisicao: RequisicaoAutenticada,

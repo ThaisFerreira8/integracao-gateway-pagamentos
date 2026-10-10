@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ContasGatewayService } from '../contas-gateway/contas-gateway.service';
 import { GatewayHttpService } from '../contas-gateway/gateway-http.service';
+import { lerTransacaoGateway } from '../comum/contrato-transacao-gateway';
 import {
   ConsultarExtratoDto,
   ESTADOS_EXTRATO,
@@ -82,18 +83,22 @@ export class CarteiraService {
         'Resposta de extrato incompatível com o contrato observado.',
       );
     }
-    // Não repassa itens desconhecidos nem apresenta lista vazia quando existem registros.
-    if (retorno.transactions.length) {
-      throw new BadGatewayException(
-        'O contrato dos itens do extrato ainda não foi confirmado.',
-      );
-    }
+    const transacoes = retorno.transactions
+      .map(lerTransacaoGateway)
+      .map((item) => ({
+        id: item.id,
+        type: item.type,
+        status: item.status,
+        amount: item.amount,
+        createdAt: item.createdAt,
+        externalReference: item.externalReference,
+      }));
     return {
       walletId: retorno.walletId,
       balance: retorno.balance,
       balanceFormatted: retorno.balanceFormatted,
       filters: { status: retorno.filters.status, type: retorno.filters.type },
-      transactions: [] as unknown[],
+      transactions: transacoes,
     };
   }
 
