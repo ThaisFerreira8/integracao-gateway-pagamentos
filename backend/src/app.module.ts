@@ -10,6 +10,7 @@ import { AppService } from './app.service';
 import { CorrelacaoRequisicoesMiddleware } from './comum/middlewares/correlacao-requisicoes.middleware';
 import { AutenticacaoModule } from './autenticacao/autenticacao.module';
 import { ContasGatewayModule } from './contas-gateway/contas-gateway.module';
+import { CheckoutsModule } from './checkouts/checkouts.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ContasGatewayModule } from './contas-gateway/contas-gateway.module';
     }),
     AutenticacaoModule,
     ContasGatewayModule,
+    CheckoutsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
