@@ -9,6 +9,7 @@ async function requisitar(
   caminho: string,
   corpo?: unknown,
   autenticada = true,
+  metodo?: "GET" | "POST" | "DELETE",
 ): Promise<unknown> {
   const enderecoConfigurado = import.meta.env.VITE_API_URL;
   if (typeof enderecoConfigurado !== "string" || !enderecoConfigurado.trim()) {
@@ -41,7 +42,7 @@ async function requisitar(
   }
   try {
     resposta = await fetch(`${base.href.replace(/\/$/, "")}${caminho}`, {
-      method: corpo === undefined ? "GET" : "POST",
+      method: metodo ?? (corpo === undefined ? "GET" : "POST"),
       headers: {
         Accept: "application/json",
         ...(corpo === undefined ? {} : { "Content-Type": "application/json" }),
@@ -76,6 +77,8 @@ async function requisitar(
         "Não foi possível concluir. Tente novamente em instantes.",
     );
   }
+  // Operações administrativas sem conteúdo não têm contrato de corpo de resposta.
+  if (resposta.status === 204) return undefined;
   try {
     return (await resposta.json()) as unknown;
   } catch {
@@ -130,6 +133,201 @@ export async function entrar(entrada: {
 }
 export function sair(): void {
   tokenSessao = null;
+}
+
+export type EstadoExtrato =
+  "PENDING" | "APPROVED" | "DENIED" | "EXPIRED" | "CANCELLED";
+export type TipoExtrato = "PIX" | "CREDIT_CARD" | "WITHDRAWAL";
+export interface CarteiraLojista {
+  balance: number;
+  balanceFormatted: string;
+  updatedAt: string;
+}
+export interface ExtratoLojista {
+  balance: number;
+  balanceFormatted: string;
+  filters: { status: EstadoExtrato | null; type: TipoExtrato | null };
+  transactions: never[];
+}
+export interface SaqueLocal {
+  id: string;
+  valorCentavos: number;
+  referenciaExterna: string;
+  estado: "PENDENTE" | "APROVADO" | "NEGADO";
+  criadoEm: string;
+  atualizadoEm: string;
+}
+export type EventoWebhook = "PAYMENT_PIX" | "PAYMENT_CARD" | "WITHDRAWAL";
+
+const texto = (valor: unknown): valor is string =>
+  typeof valor === "string" && !!valor.trim();
+const numeroFinito = (valor: unknown): valor is number =>
+  typeof valor === "number" && Number.isFinite(valor);
+
+export async function consultarCarteira(): Promise<CarteiraLojista> {
+  const retorno = await requisitar("/carteira");
+  if (
+    !objeto(retorno) ||
+    !texto(retorno.id) ||
+    !texto(retorno.userId) ||
+    !numeroFinito(retorno.balance) ||
+    !texto(retorno.balanceFormatted) ||
+    !dataValida(retorno.updatedAt)
+  )
+    throw inesperada();
+  // A tela usa o saldo formatado; não interpreta a unidade do número bruto.
+  return {
+    balance: retorno.balance,
+    balanceFormatted: retorno.balanceFormatted,
+    updatedAt: retorno.updatedAt,
+  };
+}
+
+export async function consultarExtrato(
+  consulta: {
+    status?: EstadoExtrato;
+    type?: TipoExtrato;
+    limit?: number;
+  } = {},
+): Promise<ExtratoLojista> {
+  if (
+    (consulta.status !== undefined &&
+      !["PENDING", "APPROVED", "DENIED", "EXPIRED", "CANCELLED"].includes(
+        consulta.status,
+      )) ||
+    (consulta.type !== undefined &&
+      !["PIX", "CREDIT_CARD", "WITHDRAWAL"].includes(consulta.type)) ||
+    (consulta.limit !== undefined &&
+      (!inteiro(consulta.limit) || consulta.limit < 1))
+  ) {
+    throw new Error("Confira os filtros e informe um limite inteiro positivo.");
+  }
+  const parametros = new URLSearchParams();
+  if (consulta.status) parametros.set("status", consulta.status);
+  if (consulta.type) parametros.set("type", consulta.type);
+  if (consulta.limit !== undefined)
+    parametros.set("limit", String(consulta.limit));
+  const retorno = await requisitar(
+    "/carteira/extrato" + (parametros.size ? "?" + parametros.toString() : ""),
+  );
+  if (
+    !objeto(retorno) ||
+    !texto(retorno.walletId) ||
+    !numeroFinito(retorno.balance) ||
+    !texto(retorno.balanceFormatted) ||
+    !objeto(retorno.filters) ||
+    retorno.filters.status !== (consulta.status ?? null) ||
+    retorno.filters.type !== (consulta.type ?? null) ||
+    !Array.isArray(retorno.transactions) ||
+    retorno.transactions.length !== 0
+  )
+    throw inesperada();
+  return {
+    balance: retorno.balance,
+    balanceFormatted: retorno.balanceFormatted,
+    filters: { status: consulta.status ?? null, type: consulta.type ?? null },
+    transactions: [],
+  };
+}
+
+function lerSaque(valor: unknown): SaqueLocal {
+  if (
+    !objeto(valor) ||
+    !identificadorValido(valor.id) ||
+    !inteiro(valor.valorCentavos) ||
+    !texto(valor.referenciaExterna) ||
+    typeof valor.estado !== "string" ||
+    !["PENDENTE", "APROVADO", "NEGADO"].includes(valor.estado) ||
+    !dataValida(valor.criadoEm) ||
+    !dataValida(valor.atualizadoEm)
+  )
+    throw inesperada();
+  return {
+    id: valor.id,
+    valorCentavos: valor.valorCentavos,
+    referenciaExterna: valor.referenciaExterna,
+    estado: valor.estado as SaqueLocal["estado"],
+    criadoEm: valor.criadoEm,
+    atualizadoEm: valor.atualizadoEm,
+  };
+}
+
+export async function listarSaques(): Promise<SaqueLocal[]> {
+  const retorno = await requisitar("/saques");
+  if (!Array.isArray(retorno)) throw inesperada();
+  return retorno.map(lerSaque);
+}
+
+export async function consultarSaque(id: string): Promise<SaqueLocal> {
+  if (!identificadorValido(id))
+    throw new Error("Identificador local de saque inválido.");
+  const saque = lerSaque(await requisitar("/saques/" + encodeURIComponent(id)));
+  if (saque.id !== id) throw inesperada();
+  return saque;
+}
+
+export async function listarWebhooks(): Promise<never[]> {
+  const retorno = await requisitar("/webhooks");
+  if (!Array.isArray(retorno) || retorno.length !== 0) throw inesperada();
+  return [];
+}
+
+export async function configurarWebhook(entrada: {
+  event: EventoWebhook;
+  url: string;
+  secret?: string;
+}): Promise<void> {
+  let destino: URL;
+  try {
+    destino = new URL(entrada.url);
+  } catch {
+    throw new Error("Informe uma URL HTTPS válida.");
+  }
+  if (
+    destino.protocol !== "https:" ||
+    destino.username ||
+    destino.password ||
+    !["PAYMENT_PIX", "PAYMENT_CARD", "WITHDRAWAL"].includes(entrada.event) ||
+    (entrada.secret !== undefined && !texto(entrada.secret))
+  )
+    throw new Error("Confira o evento, a URL HTTPS e o secret opcional.");
+  const retorno = await requisitar("/webhooks", {
+    event: entrada.event,
+    url: entrada.url,
+    ...(entrada.secret === undefined ? {} : { secret: entrada.secret }),
+  });
+  if (retorno !== undefined) throw inesperada();
+}
+
+export async function removerWebhook(id: string): Promise<void> {
+  if (
+    !id.trim() ||
+    id === "." ||
+    id === ".." ||
+    id.includes("/") ||
+    id.includes("\\") ||
+    [...id].some(
+      (caractere) =>
+        caractere.charCodeAt(0) < 32 || caractere.charCodeAt(0) === 127,
+    )
+  ) {
+    throw new Error(
+      "Informe um identificador que represente um único segmento de URL.",
+    );
+  }
+  let segmento: string;
+  try {
+    segmento = encodeURIComponent(id);
+  } catch {
+    throw new Error("Identificador inválido.");
+  }
+  const retorno = await requisitar(
+    "/webhooks/" + segmento,
+    undefined,
+    true,
+    "DELETE",
+  );
+  if (retorno !== undefined) throw inesperada();
 }
 
 export type MetodoPagamento = "PIX" | "CARTAO";

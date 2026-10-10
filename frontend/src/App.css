@@ -396,7 +396,8 @@ fieldset {
 .conteudo-lojista {
   min-width: 0;
 }
-.pagina-lojista:has(.pagamentos-conteudo) {
+.pagina-lojista:has(.pagamentos-conteudo),
+.pagina-lojista:has(.financeiro-conteudo) {
   padding-inline: clamp(22px, 4vw, 65px);
 }
 .pagina-lojista h1 {
