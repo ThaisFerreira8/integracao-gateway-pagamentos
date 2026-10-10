@@ -96,7 +96,8 @@ describe('Migration da estrutura inicial', () => {
     const executadas = consultas.mock.calls.map(([sql]: [string]) =>
       normalizar(sql),
     );
-    expect(executadas).toEqual(gerarSqlEsperado().criacao);
+    // Compara todas as operações, incluindo sua quantidade, sem ordenar tabelas independentes.
+    expect([...executadas].sort()).toEqual(gerarSqlEsperado().criacao.sort());
     expect(
       executadas.slice(0, 7).every((sql) => sql.startsWith('CREATE TABLE')),
     ).toBe(true);
@@ -117,12 +118,21 @@ describe('Migration da estrutura inicial', () => {
     const executadas = consultas.mock.calls.map(([sql]: [string]) =>
       normalizar(sql),
     );
-    expect(executadas).toEqual(gerarSqlEsperado().reversao);
+    const esperadas = gerarSqlEsperado().reversao;
+    const quantidadeChaves = esperadas.filter((sql) =>
+      sql.includes('DROP FOREIGN KEY'),
+    ).length;
+
+    expect([...executadas].sort()).toEqual([...esperadas].sort());
     expect(
-      executadas.slice(0, 7).every((sql) => sql.includes('DROP FOREIGN KEY')),
+      executadas
+        .slice(0, quantidadeChaves)
+        .every((sql) => sql.includes('DROP FOREIGN KEY')),
     ).toBe(true);
     expect(
-      executadas.slice(7).every((sql) => sql.startsWith('DROP TABLE')),
+      executadas
+        .slice(quantidadeChaves)
+        .every((sql) => sql.startsWith('DROP TABLE')),
     ).toBe(true);
   });
 });

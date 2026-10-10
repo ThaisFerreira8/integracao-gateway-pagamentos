@@ -9,6 +9,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CorrelacaoRequisicoesMiddleware } from './comum/middlewares/correlacao-requisicoes.middleware';
 import { AutenticacaoModule } from './autenticacao/autenticacao.module';
+import { ContasGatewayModule } from './contas-gateway/contas-gateway.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AutenticacaoModule } from './autenticacao/autenticacao.module';
       }),
     }),
     AutenticacaoModule,
+    ContasGatewayModule,
   ],
   controllers: [AppController],
   providers: [AppService],
