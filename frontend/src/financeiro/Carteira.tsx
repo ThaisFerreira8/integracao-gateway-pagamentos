@@ -162,8 +162,9 @@ export default function Carteira() {
           </fieldset>
         </form>
         <p className="texto-auxiliar">
-          A exibição de transações depende da confirmação do formato dos itens.
-          Não há paginação nem consolidação com registros locais nesta consulta.
+          Extrato consolidado com registros locais e do gateway, sem paginação.
+          Operações confirmadas no gateway usam o estado externo; registros sem
+          correspondência segura permanecem separados.
         </p>
         {erroExtrato && (
           <p className="mensagem-erro" role="alert">
@@ -177,9 +178,47 @@ export default function Carteira() {
               Saldo retornado nesta consulta:{" "}
               <strong>{extrato.balanceFormatted}</strong>
             </p>
-            <p className="estado-vazio">
-              Nenhuma transação retornada para os filtros consultados.
-            </p>
+            {extrato.transactions.length === 0 && (
+              <p className="estado-vazio">
+                Nenhuma transação retornada para os filtros consultados.
+              </p>
+            )}
+            {extrato.transactions.length > 0 && (
+              <div className="rolagem-tabela">
+                <table className="tabela-pagamentos">
+                  <caption className="somente-leitor">
+                    Extrato da conta vinculada
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th>Referência</th>
+                      <th>Tipo</th>
+                      <th>Estado</th>
+                      <th>Valor</th>
+                      <th>Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {extrato.transactions.map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.externalReference ?? item.id}</td>
+                        <td>{item.type}</td>
+                        <td>{item.status}</td>
+                        <td>
+                          {new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          }).format(item.amount / 100)}
+                        </td>
+                        <td>
+                          {new Date(item.createdAt).toLocaleString("pt-BR")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </section>

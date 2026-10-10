@@ -14,6 +14,7 @@ import { EstadoPedido, Pedido } from '../pedidos/entities/pedido.entity';
 import { CheckoutPublicoController } from './checkout-publico.controller';
 import { CheckoutsController } from './checkouts.controller';
 import { CheckoutsService } from './checkouts.service';
+import { PagamentosGatewayService } from './pagamentos-gateway.service';
 import {
   ConsultaTaxasDto,
   CriarCheckoutDto,
@@ -107,6 +108,39 @@ describe('Checkouts e contratos confirmados de pagamentos', () => {
     expect(contas.obterToken).not.toHaveBeenCalled();
   });
 
+  it('registra bandeira, parcelas e taxa da tabela ao criar o link de cartão', async () => {
+    const resultado = await servico.criar(usuarioId, {
+      ...entrada,
+      metodo: MetodoPagamento.CARTAO,
+      bandeira: 'VISA',
+      parcelas: 3,
+    });
+    expect(resultado).toMatchObject({
+      bandeira: 'VISA',
+      parcelas: 3,
+      taxaAplicadaPercentual: '3.1900',
+    });
+    expect(gateway.requisitar).toHaveBeenCalledWith('GET', '/fees?brand=VISA');
+  });
+
+  it('não cria cartão sem condição disponível nem aceita parcelas para Pix', async () => {
+    await expect(
+      servico.criar(usuarioId, { ...entrada, metodo: MetodoPagamento.CARTAO }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      servico.criar(usuarioId, {
+        ...entrada,
+        metodo: MetodoPagamento.CARTAO,
+        bandeira: 'VISA',
+        parcelas: 2,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      servico.criar(usuarioId, { ...entrada, parcelas: 3 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fonte.transaction).not.toHaveBeenCalled();
+  });
+
   it.each([
     null,
     { total: 1, fees: [] },
@@ -195,7 +229,10 @@ describe('Checkouts e contratos confirmados de pagamentos', () => {
       usuarioAutenticado: { id: usuarioId },
       body: { usuarioId: randomUUID() },
     } as unknown as RequisicaoAutenticada;
-    await new CheckoutsController(servico).listar(requisicao);
+    await new CheckoutsController(
+      servico,
+      {} as PagamentosGatewayService,
+    ).listar(requisicao);
     expect(links.find).toHaveBeenCalledWith({
       where: { usuarioId },
       order: { criadoEm: 'DESC' },
@@ -203,9 +240,10 @@ describe('Checkouts e contratos confirmados de pagamentos', () => {
   });
 
   it('consulta pública utiliza somente o identificador público e não expõe o proprietário', async () => {
-    const resultado = await new CheckoutPublicoController(servico).consultar(
-      identificador,
-    );
+    const resultado = await new CheckoutPublicoController(
+      servico,
+      {} as PagamentosGatewayService,
+    ).consultar(identificador);
     expect(links.findOneBy).toHaveBeenCalledWith({
       identificadorPublico: identificador,
     });

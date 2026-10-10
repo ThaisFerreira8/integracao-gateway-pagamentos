@@ -82,6 +82,26 @@ export class CheckoutsService {
       throw new BadRequestException('A expiração deve ser uma data futura.');
     }
     await this.contas.obterToken(usuarioId);
+    let taxaAplicadaPercentual: string | null = null;
+    if (entrada.metodo === MetodoPagamento.CARTAO) {
+      if (!entrada.bandeira || !entrada.parcelas)
+        throw new BadRequestException(
+          'Escolha a bandeira e as parcelas do link.',
+        );
+      const tabela = await this.consultarTaxas(entrada.bandeira);
+      const taxa = tabela.taxas.find(
+        (item) => item.parcelas === entrada.parcelas,
+      );
+      if (!taxa) throw new BadRequestException('Parcelas indisponíveis.');
+      taxaAplicadaPercentual = taxa.taxaPercentual.toFixed(4);
+    } else if (
+      entrada.bandeira !== undefined ||
+      entrada.parcelas !== undefined
+    ) {
+      throw new BadRequestException(
+        'Links Pix não recebem bandeira ou parcelas.',
+      );
+    }
     return this.fonte.transaction(async (gerenciador) => {
       const link = await gerenciador.save(
         LinkCheckout,
@@ -91,9 +111,9 @@ export class CheckoutsService {
           usuarioId,
           valorCentavos: entrada.valorCentavos,
           metodo: entrada.metodo,
-          parcelas: null,
-          bandeira: null,
-          taxaAplicadaPercentual: null,
+          parcelas: entrada.parcelas ?? null,
+          bandeira: entrada.bandeira ?? null,
+          taxaAplicadaPercentual,
           estado: EstadoLinkCheckout.ATIVO,
           expiraEm,
         }),

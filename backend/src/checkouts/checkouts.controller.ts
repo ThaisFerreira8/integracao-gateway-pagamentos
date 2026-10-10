@@ -1,14 +1,43 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  Param,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { RequisicaoAutenticada } from '../autenticacao/guards/autenticacao.guard';
 import { CheckoutsService } from './checkouts.service';
 import { ConsultaTaxasDto, CriarCheckoutDto } from './dtos/checkout.dto';
+import { PagamentosGatewayService } from './pagamentos-gateway.service';
 
 @ApiTags('Checkouts do lojista')
 @ApiBearerAuth()
 @Controller('checkouts')
 export class CheckoutsController {
-  constructor(private readonly checkouts: CheckoutsService) {}
+  constructor(
+    private readonly checkouts: CheckoutsService,
+    private readonly pagamentos: PagamentosGatewayService,
+  ) {}
+
+  @Post(':identificador/conciliar')
+  @ApiOperation({
+    summary:
+      'Conciliar pagamento externo do próprio lojista por identificador e referência externa',
+  })
+  conciliar(
+    @Req() requisicao: RequisicaoAutenticada,
+    @Param('identificador', new ParseUUIDPipe({ version: '4' }))
+    identificador: string,
+  ) {
+    return this.pagamentos.conciliar(
+      requisicao.usuarioAutenticado.id,
+      identificador,
+    );
+  }
 
   @Get('taxas')
   @ApiOperation({

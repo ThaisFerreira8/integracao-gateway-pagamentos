@@ -23,6 +23,18 @@ export class ConsultaTaxasDto {
 }
 
 export class CriarCheckoutDto {
+  @ApiPropertyOptional({ enum: ['VISA', 'MASTERCARD', 'ELO'] })
+  @IsOptional()
+  @IsIn(['VISA', 'MASTERCARD', 'ELO'])
+  bandeira?: BandeiraGateway;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 21 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(21)
+  parcelas?: number;
+
   @ApiProperty({
     description: 'Valor inteiro em centavos.',
     minimum: 1,

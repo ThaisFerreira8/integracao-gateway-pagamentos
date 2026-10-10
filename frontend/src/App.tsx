@@ -200,8 +200,8 @@ function App() {
                 <h2>Seu próximo passo começa aqui.</h2>
                 <p>
                   Acesse seus links de pagamento e consulte os pedidos pelo
-                  menu. A execução de Pix e cartão estará disponível em uma
-                  próxima etapa.
+                  menu. Os checkouts públicos permitem pagamentos por Pix e
+                  cartão.
                 </p>
               </section>
             )}

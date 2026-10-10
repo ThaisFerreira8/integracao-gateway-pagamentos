@@ -135,6 +135,72 @@ export function sair(): void {
   tokenSessao = null;
 }
 
+export interface ResultadoPagamento {
+  identificadorPagamento: string;
+  estado: EstadoExtrato;
+  valorCentavos: number;
+  emv?: string | null;
+  qrCodeBase64?: string | null;
+}
+export async function pagarCheckout(
+  identificador: string,
+  metodo: MetodoPagamento,
+  entrada: Record<string, string | number>,
+): Promise<ResultadoPagamento> {
+  if (!identificadorValido(identificador) || !metodoValido(metodo))
+    throw new Error("Checkout inválido.");
+  const corpo =
+    metodo === "PIX"
+      ? { documentoPagador: entrada.documentoPagador }
+      : {
+          bandeira: entrada.bandeira,
+          parcelas: entrada.parcelas,
+          numeroCartao: entrada.numeroCartao,
+          titularCartao: entrada.titularCartao,
+          mesValidade: entrada.mesValidade,
+          anoValidade: entrada.anoValidade,
+          codigoSeguranca: entrada.codigoSeguranca,
+        };
+  const retorno = await requisitar(
+    "/checkout/" +
+      encodeURIComponent(identificador) +
+      (metodo === "PIX" ? "/pix" : "/cartao"),
+    corpo,
+    false,
+  );
+  if (
+    !objeto(retorno) ||
+    !texto(retorno.identificadorPagamento) ||
+    typeof retorno.estado !== "string" ||
+    !["PENDING", "APPROVED", "DENIED", "EXPIRED", "CANCELLED"].includes(
+      retorno.estado,
+    ) ||
+    !inteiro(retorno.valorCentavos) ||
+    !(
+      retorno.emv === undefined ||
+      retorno.emv === null ||
+      texto(retorno.emv)
+    ) ||
+    !(
+      retorno.qrCodeBase64 === undefined ||
+      retorno.qrCodeBase64 === null ||
+      texto(retorno.qrCodeBase64)
+    )
+  )
+    throw inesperada();
+  return {
+    identificadorPagamento: retorno.identificadorPagamento,
+    estado: retorno.estado as EstadoExtrato,
+    valorCentavos: retorno.valorCentavos,
+    ...(metodo === "PIX"
+      ? {
+          emv: retorno.emv as string | null,
+          qrCodeBase64: retorno.qrCodeBase64 as string | null,
+        }
+      : {}),
+  };
+}
+
 export type EstadoExtrato =
   "PENDING" | "APPROVED" | "DENIED" | "EXPIRED" | "CANCELLED";
 export type TipoExtrato = "PIX" | "CREDIT_CARD" | "WITHDRAWAL";
@@ -147,7 +213,15 @@ export interface ExtratoLojista {
   balance: number;
   balanceFormatted: string;
   filters: { status: EstadoExtrato | null; type: TipoExtrato | null };
-  transactions: never[];
+  transactions: ItemExtrato[];
+}
+export interface ItemExtrato {
+  id: string;
+  type: TipoExtrato;
+  status: EstadoExtrato;
+  amount: number;
+  createdAt: string;
+  externalReference: string | null;
 }
 export interface SaqueLocal {
   id: string;
@@ -218,15 +292,37 @@ export async function consultarExtrato(
     !objeto(retorno.filters) ||
     retorno.filters.status !== (consulta.status ?? null) ||
     retorno.filters.type !== (consulta.type ?? null) ||
-    !Array.isArray(retorno.transactions) ||
-    retorno.transactions.length !== 0
+    !Array.isArray(retorno.transactions)
   )
     throw inesperada();
   return {
     balance: retorno.balance,
     balanceFormatted: retorno.balanceFormatted,
     filters: { status: consulta.status ?? null, type: consulta.type ?? null },
-    transactions: [],
+    transactions: retorno.transactions.map((item: unknown) => {
+      if (
+        !objeto(item) ||
+        !texto(item.id) ||
+        typeof item.type !== "string" ||
+        !["PIX", "CREDIT_CARD", "WITHDRAWAL"].includes(item.type) ||
+        typeof item.status !== "string" ||
+        !["PENDING", "APPROVED", "DENIED", "EXPIRED", "CANCELLED"].includes(
+          item.status,
+        ) ||
+        !inteiro(item.amount) ||
+        !dataValida(item.createdAt) ||
+        !(item.externalReference === null || texto(item.externalReference))
+      )
+        throw inesperada();
+      return {
+        id: item.id,
+        type: item.type as TipoExtrato,
+        status: item.status as EstadoExtrato,
+        amount: item.amount,
+        createdAt: item.createdAt,
+        externalReference: item.externalReference,
+      };
+    }),
   };
 }
 

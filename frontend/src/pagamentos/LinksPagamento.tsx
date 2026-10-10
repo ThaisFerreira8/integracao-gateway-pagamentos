@@ -27,6 +27,7 @@ export default function LinksPagamento() {
   const [taxas, definirTaxas] = useState<TaxaDisponivel[] | null>(null);
   const [consultandoTaxas, definirConsultandoTaxas] = useState(false);
   const [erroTaxas, definirErroTaxas] = useState("");
+  const [opcaoTaxa, definirOpcaoTaxa] = useState("");
 
   useEffect(() => {
     let atual = true;
@@ -65,7 +66,17 @@ export default function LinksPagamento() {
         throw new Error("Escolha uma data futura de expiração.");
       }
       definirCriando(true);
-      await criarLink({ valorCentavos, metodo, expiraEm: data.toISOString() });
+      const taxa = taxas?.[Number(opcaoTaxa)];
+      if (metodo === "CARTAO" && (!opcaoTaxa || !taxa))
+        throw new Error("Consulte as taxas e escolha bandeira e parcelas.");
+      await criarLink({
+        valorCentavos,
+        metodo,
+        expiraEm: data.toISOString(),
+        ...(metodo === "CARTAO" && taxa
+          ? { bandeira: taxa.bandeira, parcelas: taxa.parcelas }
+          : {}),
+      });
       definirMensagem(
         "Link criado. A criação do link ainda não executa um pagamento.",
       );
@@ -99,6 +110,7 @@ export default function LinksPagamento() {
   }
 
   async function carregarTaxas() {
+    definirOpcaoTaxa("");
     definirConsultandoTaxas(true);
     definirErroTaxas("");
     try {
@@ -173,6 +185,33 @@ export default function LinksPagamento() {
             <button className="botao-principal acao-compacta" type="submit">
               {criando ? "Criando…" : "Criar link"}
             </button>
+            {metodo === "CARTAO" && (
+              <div className="campo">
+                <button
+                  type="button"
+                  className="botao-secundario"
+                  onClick={() => void carregarTaxas()}
+                  disabled={consultandoTaxas}
+                >
+                  Consultar taxas para o link
+                </button>
+                <label htmlFor="taxa-link">Bandeira, parcelas e taxa</label>
+                <select
+                  id="taxa-link"
+                  required
+                  value={opcaoTaxa}
+                  onChange={(evento) => definirOpcaoTaxa(evento.target.value)}
+                >
+                  <option value="">Selecione uma condição</option>
+                  {taxas?.map((taxa, indice) => (
+                    <option key={indice} value={indice}>
+                      {taxa.bandeira} · {taxa.parcelas}x · {taxa.taxaPercentual}
+                      %
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </fieldset>
         </form>
         {erro && (
@@ -223,6 +262,7 @@ export default function LinksPagamento() {
                   <th>Identificador público</th>
                   <th>Valor</th>
                   <th>Método</th>
+                  <th>Taxa registrada</th>
                   <th>Estado do link</th>
                   <th>Expiração</th>
                   <th>Ações</th>
@@ -236,6 +276,11 @@ export default function LinksPagamento() {
                     </td>
                     <td>{moeda.format(link.valorCentavos / 100)}</td>
                     <td>{link.metodo === "PIX" ? "Pix" : "Cartão"}</td>
+                    <td>
+                      {link.taxaAplicadaPercentual === null
+                        ? "Não se aplica / não registrada"
+                        : `${link.bandeira} · ${link.parcelas}x · ${link.taxaAplicadaPercentual}%`}
+                    </td>
                     <td>
                       <span className="etiqueta-informativa">
                         {link.estado}

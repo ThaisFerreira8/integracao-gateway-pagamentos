@@ -48,7 +48,7 @@ export class ConsultarExtratoDto {
   limit?: number;
 }
 
-// Apenas entrada confirmada. Não há rota de saque até confirmar a resposta necessária à persistência.
+// Entrada do BaaS traduzida para o contrato observado de saque do gateway.
 export class SolicitarSaqueDto {
   @ApiProperty({ description: 'Valor inteiro em centavos.', minimum: 1 })
   @IsInt()

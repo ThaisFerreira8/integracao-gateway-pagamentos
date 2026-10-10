@@ -10,6 +10,7 @@ import type { RequisicaoAutenticada } from '../autenticacao/guards/autenticacao.
 import { ContasGatewayService } from '../contas-gateway/contas-gateway.service';
 import { GatewayHttpService } from '../contas-gateway/gateway-http.service';
 import { Saque } from '../saques/entities/saque.entity';
+import { Transacao } from '../transacoes/entities/transacao.entity';
 import { SaquesController } from '../saques/saques.controller';
 import { SaquesService } from '../saques/saques.service';
 import { CarteiraController } from './carteira.controller';
@@ -28,8 +29,16 @@ describe('Carteira, extrato e consultas locais de saques', () => {
   const carteira = new CarteiraService(
     contas as unknown as ContasGatewayService,
     gateway as unknown as GatewayHttpService,
+    {
+      find: jest.fn().mockResolvedValue([]),
+    } as unknown as Repository<Transacao>,
+    { find: jest.fn().mockResolvedValue([]) } as unknown as Repository<Saque>,
   );
-  const saques = new SaquesService(repositorio as unknown as Repository<Saque>);
+  const saques = new SaquesService(
+    repositorio as unknown as Repository<Saque>,
+    contas as unknown as ContasGatewayService,
+    gateway as unknown as GatewayHttpService,
+  );
   const pipe = new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
@@ -231,6 +240,38 @@ describe('Carteira, extrato e consultas locais de saques', () => {
     ).rejects.toBeInstanceOf(BadGatewayException);
   });
 
+  it('seleciona campos comprovados de extrato não vazio, sem dados sensíveis', async () => {
+    gateway.requisitar.mockResolvedValueOnce({
+      ...extrato,
+      transactions: [
+        {
+          id: 'externo',
+          type: 'PIX',
+          status: 'DENIED',
+          amount: 1,
+          createdAt: '2026-10-10T12:00:00.000Z',
+          metadata: {
+            externalReference: 'PEDIDO-teste',
+            ChaveLoja: 'NAO-EXPOR',
+            payerDocument: 'NAO-EXPOR',
+          },
+        },
+      ],
+    });
+    const retorno = await carteira.consultarExtrato(usuarioId, {});
+    expect(retorno.transactions).toEqual([
+      {
+        id: 'externo',
+        type: 'PIX',
+        status: 'DENIED',
+        amount: 1,
+        createdAt: '2026-10-10T12:00:00.000Z',
+        externalReference: 'PEDIDO-teste',
+      },
+    ]);
+    expect(JSON.stringify(retorno)).not.toContain('NAO-EXPOR');
+  });
+
   it('não expõe itens desconhecidos nem os transforma em extrato vazio', async () => {
     gateway.requisitar.mockResolvedValueOnce({
       ...extrato,
@@ -239,7 +280,7 @@ describe('Carteira, extrato e consultas locais de saques', () => {
     await expect(
       carteira.consultarExtrato(usuarioId, {}),
     ).rejects.toMatchObject({
-      message: 'O contrato dos itens do extrato ainda não foi confirmado.',
+      message: 'Resposta financeira incompatível com o contrato observado.',
     });
   });
 

@@ -24,7 +24,7 @@ export class PagamentosController {
   @ApiOperation({
     summary: 'Listar pedidos e transações locais do lojista autenticado',
     description:
-      'Não consulta nem concilia o gateway. A execução de Pix/cartão e a conciliação externa permanecem pendentes da confirmação do contrato de resposta. EXPIRED/CANCELLED exigem transações locais nesses estados; o enum do pedido não os suporta.',
+      'Lista registros locais. A consulta externa e atualização são feitas por POST /checkouts/:identificador/conciliar. EXPIRED/CANCELLED exigem transações locais nesses estados; o enum do pedido não os suporta.',
   })
   listar(
     @Req() requisicao: RequisicaoAutenticada,
