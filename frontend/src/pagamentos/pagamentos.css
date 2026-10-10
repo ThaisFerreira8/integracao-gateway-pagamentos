@@ -1,0 +1,256 @@
+.pagamentos-conteudo {
+  display: grid;
+  gap: 22px;
+  margin-top: 30px;
+}
+.painel-pagamentos {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #e0e7f1;
+  border-radius: 12px;
+  background: white;
+}
+.titulo-painel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.titulo-painel h2,
+.cartao-checkout h2 {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+}
+.texto-auxiliar {
+  font-size: 12px;
+  color: var(--texto-suave);
+  line-height: 1.8;
+  margin: 12px 0 22px;
+}
+.grade-formulario {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.pagamentos-conteudo .campo {
+  margin-bottom: 0;
+}
+.campo select {
+  width: 100%;
+  height: 45px;
+  border: 1px solid #d9e2ef;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: white;
+  color: #112445;
+  font-size: 13px;
+}
+.acao-compacta {
+  width: auto;
+  min-width: 135px;
+  padding: 0 20px;
+  margin-top: 22px;
+}
+.botao-secundario {
+  border: 1px solid #dfe6f0;
+  background: white;
+  border-radius: 7px;
+  padding: 9px 14px;
+  color: #526987;
+  font-size: 12px;
+}
+.botao-secundario:hover {
+  background: #f4f7fc;
+}
+.botao-texto {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1558e6;
+  font-size: 12px;
+}
+.acoes-tabela {
+  display: flex;
+  gap: 14px;
+  white-space: nowrap;
+}
+.acoes-tabela a {
+  color: #1558e6;
+  text-decoration: none;
+}
+.etiqueta-informativa {
+  display: inline-block;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #edf3ff;
+  color: #285a9e;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.rolagem-tabela {
+  overflow-x: auto;
+}
+.tabela-pagamentos {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+.tabela-pagamentos th {
+  color: #8190a7;
+  font-weight: 500;
+  font-size: 10px;
+}
+.tabela-pagamentos th,
+.tabela-pagamentos td {
+  padding: 15px 12px;
+  border-bottom: 1px solid #edf1f7;
+  vertical-align: top;
+}
+.tabela-pagamentos tr:last-child td {
+  border-bottom: 0;
+}
+.identificador {
+  overflow-wrap: anywhere;
+  min-width: 180px;
+  max-width: 280px;
+  font-size: 11px;
+}
+.estado-vazio {
+  padding: 30px 0;
+  font-size: 13px;
+  color: var(--texto-suave);
+  line-height: 1.8;
+}
+.painel-pagamentos .mensagem-erro,
+.painel-pagamentos .mensagem-sucesso {
+  margin-top: 18px;
+}
+.aviso-pagamentos {
+  padding: 16px 18px;
+  border: 1px solid #dce7f8;
+  background: #edf3ff;
+  color: #3e608d;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.detalhes-pedido {
+  margin-top: 15px;
+  max-width: 330px;
+  overflow-wrap: anywhere;
+  color: #526987;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.detalhes-pedido dl {
+  margin-top: 15px;
+  padding: 12px;
+  border-radius: 6px;
+  background: #f6f8fc;
+}
+.detalhes-pedido dt {
+  color: #8190a7;
+}
+.detalhes-pedido dd {
+  margin: 0 0 8px;
+}
+.paginacao-pagamentos {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.paginacao-pagamentos > div {
+  display: flex;
+  gap: 8px;
+}
+.checkout-publico {
+  min-height: 100svh;
+  padding: 40px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  background: #f5f8fc;
+}
+.cartao-checkout {
+  width: 100%;
+  max-width: 620px;
+  padding: 32px;
+  background: white;
+  border: 1px solid #e0e7f1;
+  border-radius: 16px;
+}
+.cartao-checkout h1 {
+  margin: 15px 0;
+  font-size: 29px;
+  font-weight: 500;
+  letter-spacing: -1px;
+}
+.valor-checkout {
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  margin: 30px 0;
+  overflow-wrap: anywhere;
+}
+.resumo-checkout {
+  display: grid;
+  gap: 18px;
+  font-size: 12px;
+  margin-bottom: 24px;
+}
+.resumo-checkout > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.resumo-checkout dt {
+  color: var(--texto-suave);
+}
+.resumo-checkout dd {
+  margin: 0;
+  text-align: right;
+}
+.cartao-checkout > section {
+  margin-top: 28px;
+}
+.rodape-checkout {
+  color: #8190a7;
+  font-size: 11px;
+}
+.somente-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 1100px) {
+  .grade-formulario {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 650px) {
+  .painel-pagamentos {
+    padding: 18px;
+  }
+  .cartao-checkout {
+    padding: 24px 18px;
+  }
+  .paginacao-pagamentos {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

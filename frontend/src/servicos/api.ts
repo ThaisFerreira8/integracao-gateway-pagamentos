@@ -5,10 +5,16 @@ export interface UsuarioSessao {
 }
 let tokenSessao: string | null = null;
 
-async function requisitar(caminho: string, corpo: unknown): Promise<unknown> {
+async function requisitar(
+  caminho: string,
+  corpo?: unknown,
+  autenticada = true,
+): Promise<unknown> {
   const enderecoConfigurado = import.meta.env.VITE_API_URL;
   if (typeof enderecoConfigurado !== "string" || !enderecoConfigurado.trim()) {
-    throw new Error("Configuração ausente: defina VITE_API_URL para acessar o backend.");
+    throw new Error(
+      "Configuração ausente: defina VITE_API_URL para acessar o backend.",
+    );
   }
 
   let base: URL;
@@ -30,14 +36,18 @@ async function requisitar(caminho: string, corpo: unknown): Promise<unknown> {
   }
 
   let resposta: Response;
+  if (autenticada && !tokenSessao) {
+    throw new Error("Sua sessão terminou. Entre novamente.");
+  }
   try {
     resposta = await fetch(`${base.href.replace(/\/$/, "")}${caminho}`, {
-      method: "POST",
+      method: corpo === undefined ? "GET" : "POST",
       headers: {
-        "Content-Type": "application/json",
-        ...(tokenSessao ? { Authorization: `Bearer ${tokenSessao}` } : {}),
+        Accept: "application/json",
+        ...(corpo === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(autenticada ? { Authorization: `Bearer ${tokenSessao}` } : {}),
       },
-      body: JSON.stringify(corpo),
+      body: corpo === undefined ? undefined : JSON.stringify(corpo),
       credentials: "omit",
       redirect: "error",
       signal: AbortSignal.timeout(15000),
@@ -50,8 +60,14 @@ async function requisitar(caminho: string, corpo: unknown): Promise<unknown> {
   if (!resposta.ok) {
     const mensagens: Record<number, string> = {
       400: "Confira os dados informados e tente novamente.",
-      401: "E-mail ou senha inválidos.",
-      409: "Este e-mail já possui uma conta. Entre com seu acesso.",
+      401: autenticada
+        ? "Sua sessão terminou. Entre novamente."
+        : "E-mail ou senha inválidos.",
+      404: "Registro não encontrado.",
+      409:
+        caminho === "/autenticacao/cadastro"
+          ? "Este e-mail já possui uma conta. Entre com seu acesso."
+          : "Não foi possível concluir devido ao estado atual do registro.",
       429: "Muitas tentativas. Aguarde e tente novamente.",
     };
     // Não reproduz corpos de erro que possam conter dados internos.
@@ -86,7 +102,7 @@ export async function cadastrarLojista(entrada: {
   email: string;
   senha: string;
 }): Promise<void> {
-  const retorno = await requisitar("/autenticacao/cadastro", entrada);
+  const retorno = await requisitar("/autenticacao/cadastro", entrada, false);
   if (!usuarioValido(retorno))
     throw new Error("A aplicação retornou uma resposta inesperada.");
 }
@@ -95,7 +111,7 @@ export async function entrar(entrada: {
   senha: string;
 }): Promise<UsuarioSessao> {
   tokenSessao = null;
-  const retorno = await requisitar("/autenticacao/login", entrada);
+  const retorno = await requisitar("/autenticacao/login", entrada, false);
   if (
     !objeto(retorno) ||
     typeof retorno.tokenAcesso !== "string" ||
@@ -114,4 +130,335 @@ export async function entrar(entrada: {
 }
 export function sair(): void {
   tokenSessao = null;
+}
+
+export type MetodoPagamento = "PIX" | "CARTAO";
+export type EstadoLink = "ATIVO" | "PAGO" | "EXPIRADO" | "CANCELADO";
+export type FiltroPagamento = "APPROVED" | "DENIED" | "EXPIRED" | "CANCELLED";
+export interface TaxaDisponivel {
+  bandeira: "VISA" | "MASTERCARD" | "ELO";
+  parcelas: number;
+  taxaPercentual: number;
+}
+export interface LinkPagamento {
+  identificadorPublico: string;
+  valorCentavos: number;
+  metodo: MetodoPagamento;
+  parcelas: number | null;
+  bandeira: string | null;
+  taxaAplicadaPercentual: string | null;
+  estado: EstadoLink;
+  expiraEm: string;
+}
+export interface CheckoutPublico extends LinkPagamento {
+  taxas?: TaxaDisponivel[];
+}
+export interface TransacaoLocal {
+  id: string;
+  tipo: MetodoPagamento;
+  estado: "PENDENTE" | "APROVADA" | "NEGADA" | "EXPIRADA" | "CANCELADA";
+  valorCentavos: number;
+  taxaCentavos: number | null;
+  valorLiquidoCentavos: number | null;
+  criadoEm: string;
+}
+export interface PedidoLocal {
+  id: string;
+  referenciaExterna: string;
+  estadoPedido: "PENDENTE" | "APROVADO" | "NEGADO";
+  criadoEm: string;
+  atualizadoEm: string;
+  checkout: {
+    identificadorPublico: string;
+    valorCentavos: number;
+    metodo: MetodoPagamento;
+    estadoLink: EstadoLink;
+  };
+  transacoes: TransacaoLocal[];
+}
+export interface PaginaPedidos {
+  dados: PedidoLocal[];
+  pagina: number;
+  limite: number;
+  total: number;
+  totalPaginas: number;
+}
+
+const identificadorValido = (valor: unknown): valor is string =>
+  typeof valor === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(valor);
+const inteiro = (valor: unknown): valor is number =>
+  typeof valor === "number" && Number.isSafeInteger(valor) && valor >= 0;
+const dataValida = (valor: unknown): valor is string =>
+  typeof valor === "string" && Number.isFinite(Date.parse(valor));
+const metodoValido = (valor: unknown): valor is MetodoPagamento =>
+  valor === "PIX" || valor === "CARTAO";
+const estadoLinkValido = (valor: unknown): valor is EstadoLink =>
+  typeof valor === "string" &&
+  ["ATIVO", "PAGO", "EXPIRADO", "CANCELADO"].includes(valor);
+const inesperada = () =>
+  new Error("A aplicação retornou uma resposta inesperada.");
+
+export function reaisParaCentavos(valor: string): number {
+  const entrada = valor.trim();
+  if (!/^\d+(?:[,.]\d{1,2})?$/.test(entrada)) {
+    throw new Error(
+      "Informe o valor com até duas casas decimais, sem separador de milhar.",
+    );
+  }
+  // Junta os dígitos para evitar arredondamento de ponto flutuante na entrada.
+  const [reais, fracao = ""] = entrada.replace(",", ".").split(".");
+  const centavos = Number(reais + fracao.padEnd(2, "0"));
+  if (
+    !Number.isSafeInteger(centavos) ||
+    centavos < 1 ||
+    centavos > 4294967295
+  ) {
+    throw new Error("Informe um valor entre R$ 0,01 e R$ 42.949.672,95.");
+  }
+  return centavos;
+}
+
+function lerLink(valor: unknown): LinkPagamento {
+  if (
+    !objeto(valor) ||
+    !identificadorValido(valor.identificadorPublico) ||
+    !inteiro(valor.valorCentavos) ||
+    valor.valorCentavos < 1 ||
+    !metodoValido(valor.metodo) ||
+    !estadoLinkValido(valor.estado) ||
+    !dataValida(valor.expiraEm) ||
+    !(
+      valor.parcelas === null ||
+      (inteiro(valor.parcelas) && valor.parcelas >= 1 && valor.parcelas <= 21)
+    ) ||
+    !(valor.bandeira === null || typeof valor.bandeira === "string") ||
+    !(
+      valor.taxaAplicadaPercentual === null ||
+      (typeof valor.taxaAplicadaPercentual === "string" &&
+        /^\d+(?:\.\d{1,4})?$/.test(valor.taxaAplicadaPercentual) &&
+        Number(valor.taxaAplicadaPercentual) <= 100)
+    )
+  )
+    throw inesperada();
+  return {
+    identificadorPublico: valor.identificadorPublico,
+    valorCentavos: valor.valorCentavos,
+    metodo: valor.metodo,
+    parcelas: valor.parcelas,
+    bandeira: valor.bandeira,
+    taxaAplicadaPercentual: valor.taxaAplicadaPercentual,
+    estado: valor.estado,
+    expiraEm: valor.expiraEm,
+  };
+}
+
+function lerTaxas(valor: unknown): TaxaDisponivel[] {
+  if (!Array.isArray(valor)) throw inesperada();
+  return valor.map((taxa: unknown) => {
+    if (
+      !objeto(taxa) ||
+      typeof taxa.bandeira !== "string" ||
+      !["VISA", "MASTERCARD", "ELO"].includes(taxa.bandeira) ||
+      !inteiro(taxa.parcelas) ||
+      taxa.parcelas < 1 ||
+      taxa.parcelas > 21 ||
+      typeof taxa.taxaPercentual !== "number" ||
+      !Number.isFinite(taxa.taxaPercentual) ||
+      taxa.taxaPercentual < 0 ||
+      taxa.taxaPercentual > 100
+    )
+      throw inesperada();
+    return {
+      bandeira: taxa.bandeira as TaxaDisponivel["bandeira"],
+      parcelas: taxa.parcelas,
+      taxaPercentual: taxa.taxaPercentual,
+    };
+  });
+}
+
+export async function listarLinks(): Promise<LinkPagamento[]> {
+  const retorno = await requisitar("/checkouts");
+  if (!Array.isArray(retorno)) throw inesperada();
+  return retorno.map(lerLink);
+}
+
+export async function criarLink(entrada: {
+  valorCentavos: number;
+  metodo: MetodoPagamento;
+  expiraEm: string;
+}): Promise<LinkPagamento> {
+  if (
+    !inteiro(entrada.valorCentavos) ||
+    entrada.valorCentavos < 1 ||
+    entrada.valorCentavos > 4294967295 ||
+    !metodoValido(entrada.metodo) ||
+    !dataValida(entrada.expiraEm) ||
+    Date.parse(entrada.expiraEm) <= Date.now()
+  ) {
+    throw new Error("Confira o valor, o método e a data futura de expiração.");
+  }
+  return lerLink(
+    await requisitar("/checkouts", {
+      valorCentavos: entrada.valorCentavos,
+      metodo: entrada.metodo,
+      expiraEm: entrada.expiraEm,
+    }),
+  );
+}
+
+export async function consultarTaxas(
+  bandeira?: TaxaDisponivel["bandeira"],
+): Promise<TaxaDisponivel[]> {
+  if (
+    bandeira !== undefined &&
+    !["VISA", "MASTERCARD", "ELO"].includes(bandeira)
+  ) {
+    throw new Error("Bandeira inválida.");
+  }
+  const retorno = await requisitar(
+    "/checkouts/taxas" +
+      (bandeira ? "?bandeira=" + encodeURIComponent(bandeira) : ""),
+  );
+  if (!objeto(retorno) || !inteiro(retorno.total)) throw inesperada();
+  const taxas = lerTaxas(retorno.taxas);
+  if (
+    retorno.total !== taxas.length ||
+    (bandeira && taxas.some((taxa) => taxa.bandeira !== bandeira))
+  )
+    throw inesperada();
+  return taxas;
+}
+
+export async function consultarCheckout(
+  identificador: string,
+): Promise<CheckoutPublico> {
+  if (!identificadorValido(identificador))
+    throw new Error("O identificador deste link é inválido.");
+  // A consulta pública nunca herda o Bearer da sessão administrativa.
+  const retorno = await requisitar(
+    "/checkout/" + encodeURIComponent(identificador),
+    undefined,
+    false,
+  );
+  const link = lerLink(retorno);
+  if (link.identificadorPublico !== identificador || !objeto(retorno))
+    throw inesperada();
+  return {
+    ...link,
+    ...(retorno.taxas === undefined ? {} : { taxas: lerTaxas(retorno.taxas) }),
+  };
+}
+
+function lerTransacao(valor: unknown): TransacaoLocal {
+  if (
+    !objeto(valor) ||
+    !identificadorValido(valor.id) ||
+    !metodoValido(valor.tipo) ||
+    typeof valor.estado !== "string" ||
+    !["PENDENTE", "APROVADA", "NEGADA", "EXPIRADA", "CANCELADA"].includes(
+      valor.estado,
+    ) ||
+    !inteiro(valor.valorCentavos) ||
+    !dataValida(valor.criadoEm) ||
+    !(valor.taxaCentavos === null || inteiro(valor.taxaCentavos)) ||
+    !(
+      valor.valorLiquidoCentavos === null || inteiro(valor.valorLiquidoCentavos)
+    )
+  )
+    throw inesperada();
+  return {
+    id: valor.id,
+    tipo: valor.tipo,
+    estado: valor.estado as TransacaoLocal["estado"],
+    valorCentavos: valor.valorCentavos,
+    taxaCentavos: valor.taxaCentavos,
+    valorLiquidoCentavos: valor.valorLiquidoCentavos,
+    criadoEm: valor.criadoEm,
+  };
+}
+
+function lerPedido(valor: unknown): PedidoLocal {
+  if (
+    !objeto(valor) ||
+    !identificadorValido(valor.id) ||
+    typeof valor.referenciaExterna !== "string" ||
+    !valor.referenciaExterna ||
+    typeof valor.estadoPedido !== "string" ||
+    !["PENDENTE", "APROVADO", "NEGADO"].includes(valor.estadoPedido) ||
+    !dataValida(valor.criadoEm) ||
+    !dataValida(valor.atualizadoEm) ||
+    !objeto(valor.checkout) ||
+    !identificadorValido(valor.checkout.identificadorPublico) ||
+    !inteiro(valor.checkout.valorCentavos) ||
+    !metodoValido(valor.checkout.metodo) ||
+    !estadoLinkValido(valor.checkout.estadoLink) ||
+    !Array.isArray(valor.transacoes)
+  )
+    throw inesperada();
+  return {
+    id: valor.id,
+    referenciaExterna: valor.referenciaExterna,
+    estadoPedido: valor.estadoPedido as PedidoLocal["estadoPedido"],
+    criadoEm: valor.criadoEm,
+    atualizadoEm: valor.atualizadoEm,
+    checkout: {
+      identificadorPublico: valor.checkout.identificadorPublico,
+      valorCentavos: valor.checkout.valorCentavos,
+      metodo: valor.checkout.metodo,
+      estadoLink: valor.checkout.estadoLink,
+    },
+    transacoes: valor.transacoes.map(lerTransacao),
+  };
+}
+
+export async function listarPedidos(consulta: {
+  pagina: number;
+  limite: number;
+  status?: FiltroPagamento;
+  referenciaExterna?: string;
+}): Promise<PaginaPedidos> {
+  if (
+    !inteiro(consulta.pagina) ||
+    consulta.pagina < 1 ||
+    consulta.pagina > 100000 ||
+    !inteiro(consulta.limite) ||
+    consulta.limite < 1 ||
+    consulta.limite > 100 ||
+    (consulta.status !== undefined &&
+      !["APPROVED", "DENIED", "EXPIRED", "CANCELLED"].includes(
+        consulta.status,
+      )) ||
+    (consulta.referenciaExterna !== undefined &&
+      (!consulta.referenciaExterna.trim() ||
+        consulta.referenciaExterna.length > 100))
+  ) {
+    throw new Error("Confira os filtros e a paginação.");
+  }
+  const parametros = new URLSearchParams({
+    pagina: String(consulta.pagina),
+    limite: String(consulta.limite),
+  });
+  if (consulta.status) parametros.set("status", consulta.status);
+  if (consulta.referenciaExterna)
+    parametros.set("referenciaExterna", consulta.referenciaExterna.trim());
+  const retorno = await requisitar("/pagamentos?" + parametros.toString());
+  if (
+    !objeto(retorno) ||
+    !Array.isArray(retorno.dados) ||
+    retorno.pagina !== consulta.pagina ||
+    retorno.limite !== consulta.limite ||
+    !inteiro(retorno.total) ||
+    !inteiro(retorno.totalPaginas) ||
+    retorno.totalPaginas !== Math.ceil(retorno.total / consulta.limite) ||
+    retorno.dados.length > consulta.limite
+  )
+    throw inesperada();
+  return {
+    dados: retorno.dados.map(lerPedido),
+    pagina: consulta.pagina,
+    limite: consulta.limite,
+    total: retorno.total,
+    totalPaginas: retorno.totalPaginas,
+  };
 }

@@ -6,6 +6,10 @@ import {
   type UsuarioSessao,
 } from "./servicos/api";
 import "./App.css";
+import LinksPagamento from "./pagamentos/LinksPagamento";
+import CheckoutPublico from "./pagamentos/CheckoutPublico";
+import Transacoes from "./pagamentos/Transacoes";
+import "./pagamentos/pagamentos.css";
 
 const secoes = [
   "Visão geral",
@@ -35,9 +39,13 @@ function Marca() {
 }
 
 function App() {
+  const [caminho, definirCaminho] = useState(() => window.location.pathname);
   useEffect(() => {
     document.title = "Nexora";
     document.documentElement.lang = "pt-BR";
+    const atualizarCaminho = () => definirCaminho(window.location.pathname);
+    window.addEventListener("popstate", atualizarCaminho);
+    return () => window.removeEventListener("popstate", atualizarCaminho);
   }, []);
   const [usuario, definirUsuario] = useState<UsuarioSessao | null>(null);
   const [cadastro, definirCadastro] = useState(false);
@@ -101,6 +109,14 @@ function App() {
     definirSecao("Visão geral");
   }
 
+  // O checkout público tem prioridade mesmo quando existe uma sessão administrativa.
+  if (caminho === "/checkout" || caminho.startsWith("/checkout/")) {
+    const identificador = caminho.match(/^\/checkout\/([^/]+)\/?$/)?.[1] ?? "";
+    return (
+      <CheckoutPublico key={identificador} identificador={identificador} />
+    );
+  }
+
   if (usuario) {
     const iniciais = usuario.nome
       .trim()
@@ -157,8 +173,14 @@ function App() {
             <p className="descricao-pagina">
               {secao === "Visão geral"
                 ? "Bem-vindo ao seu espaço de pagamentos."
-                : "Esta seção estará disponível nas próximas etapas."}
+                : secao === "Links de pagamento"
+                  ? "Crie e acompanhe seus checkouts em um só lugar."
+                  : secao === "Transações"
+                    ? "Consulte os pedidos e as transações registrados na sua conta."
+                    : "Esta seção estará disponível nas próximas etapas."}
             </p>
+            {secao === "Links de pagamento" && <LinksPagamento />}
+            {secao === "Transações" && <Transacoes />}
             {secao === "Visão geral" && (
               <section className="inicio-conta">
                 <span className="inicio-simbolo" aria-hidden="true">
@@ -166,8 +188,9 @@ function App() {
                 </span>
                 <h2>Seu próximo passo começa aqui.</h2>
                 <p>
-                  Acesse as seções pelo menu. As funcionalidades financeiras
-                  serão conectadas nas próximas etapas.
+                  Acesse seus links de pagamento e consulte os pedidos pelo
+                  menu. A execução de Pix e cartão estará disponível em uma
+                  próxima etapa.
                 </p>
               </section>
             )}

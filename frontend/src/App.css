@@ -391,6 +391,13 @@ fieldset {
 .pagina-lojista {
   padding: 48px clamp(30px, 7vw, 120px);
   max-width: 1400px;
+  min-width: 0;
+}
+.conteudo-lojista {
+  min-width: 0;
+}
+.pagina-lojista:has(.pagamentos-conteudo) {
+  padding-inline: clamp(22px, 4vw, 65px);
 }
 .pagina-lojista h1 {
   font-size: 29px;
