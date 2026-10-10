@@ -1,9 +1,15 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
+import { CadastrarLojistaDto } from './dtos/cadastrar-lojista.dto';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { LoginDto } from './dtos/login.dto';
 
@@ -21,6 +27,34 @@ export class AutenticacaoService {
     const sal = randomBytes(16).toString('hex');
     const hash = (await derivarSenha(senha, sal, 64)) as Buffer;
     return `scrypt:${sal}:${hash.toString('hex')}`;
+  }
+
+  async cadastrar(entrada: CadastrarLojistaDto) {
+    const email = entrada.email.trim().toLowerCase();
+    if (await this.usuarios.findOneBy({ email })) {
+      throw new ConflictException('Este e-mail já possui uma conta.');
+    }
+    const usuario = this.usuarios.create({
+      nome: entrada.nome.trim(),
+      email,
+      senhaHash: await this.gerarHashSenha(entrada.senha),
+    });
+    try {
+      const criado = await this.usuarios.save(usuario);
+      // Cadastro somente local; não emite token nem aciona o gateway.
+      return { id: criado.id, nome: criado.nome, email: criado.email };
+    } catch (erro) {
+      if (
+        erro instanceof QueryFailedError &&
+        erro.driverError?.code === 'ER_DUP_ENTRY'
+      ) {
+        throw new ConflictException('Este e-mail já possui uma conta.');
+      }
+      // Não repassa erros de banco, que podem conter parâmetros e hash de senha.
+      throw new InternalServerErrorException(
+        'Não foi possível criar sua conta.',
+      );
+    }
   }
 
   async entrar(entrada: LoginDto) {
