@@ -12,6 +12,7 @@ import { AutenticacaoModule } from './autenticacao/autenticacao.module';
 import { ContasGatewayModule } from './contas-gateway/contas-gateway.module';
 import { CheckoutsModule } from './checkouts/checkouts.module';
 import { PagamentosModule } from './pagamentos/pagamentos.module';
+import { CarteiraModule } from './carteira/carteira.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { PagamentosModule } from './pagamentos/pagamentos.module';
     ContasGatewayModule,
     CheckoutsModule,
     PagamentosModule,
+    CarteiraModule,
   ],
   controllers: [AppController],
   providers: [AppService],
