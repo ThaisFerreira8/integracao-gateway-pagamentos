@@ -75,9 +75,10 @@ export default function Transacoes() {
   return (
     <div className="pagamentos-conteudo">
       <p className="aviso-pagamentos">
-        Esta consulta apresenta pedidos e transações locais. Ainda não há
-        conciliação externa de pagamentos. Expirados e cancelados consideram
-        somente transações locais com esses estados, não a expiração do link.
+        Esta consulta apresenta pedidos e transações locais. A conciliação
+        externa está disponível pela API privada de checkouts. Expirados e
+        cancelados consideram somente transações locais com esses estados, não a
+        expiração do link.
       </p>
       <section className="painel-pagamentos" aria-labelledby="titulo-filtros">
         <div className="titulo-painel">

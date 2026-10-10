@@ -58,7 +58,7 @@ export default function Saques() {
     <div className="financeiro-conteudo">
       <p className="aviso-pagamentos">
         Esta tela consulta somente saques registrados localmente. A solicitação
-        de saque e a atualização pelo gateway ainda não estão disponíveis.
+        e a conciliação externa estão disponíveis pela API privada de saques.
       </p>
       <section className="painel-pagamentos" aria-labelledby="titulo-saques">
         <div className="titulo-painel">
