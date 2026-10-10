@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, type JwtModuleOptions } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ContaGateway } from '../contas-gateway/entities/conta-gateway.entity';
+import { APP_GUARD } from '@nestjs/core';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { AutenticacaoController } from './autenticacao.controller';
 import { AutenticacaoService } from './autenticacao.service';
+import { AutenticacaoGuard } from './guards/autenticacao.guard';
 
 export function criarConfiguracaoJwt(
   configuracao: ConfigService,
@@ -49,7 +50,7 @@ export function criarConfiguracaoJwt(
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Usuario, ContaGateway]),
+    TypeOrmModule.forFeature([Usuario]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -57,7 +58,10 @@ export function criarConfiguracaoJwt(
     }),
   ],
   controllers: [AutenticacaoController],
-  providers: [AutenticacaoService],
+  providers: [
+    AutenticacaoService,
+    { provide: APP_GUARD, useClass: AutenticacaoGuard },
+  ],
   exports: [AutenticacaoService, JwtModule],
 })
 export class AutenticacaoModule {}

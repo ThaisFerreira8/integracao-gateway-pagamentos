@@ -7,6 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { AutenticacaoService } from './autenticacao.service';
 import { LoginDto } from './dtos/login.dto';
+import { RotaPublica } from './decoradores/rota-publica.decorator';
 
 @ApiTags('Autenticação')
 @Controller('autenticacao')
@@ -14,6 +15,7 @@ export class AutenticacaoController {
   constructor(private readonly autenticacao: AutenticacaoService) {}
 
   @Post('login')
+  @RotaPublica()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Autenticar o lojista na aplicação BaaS' })
   @ApiOkResponse({
