@@ -1,0 +1,71 @@
+.financeiro-conteudo {
+  display: grid;
+  gap: 22px;
+  margin-top: 30px;
+}
+.saldo-financeiro {
+  padding: 20px 0 8px;
+  color: var(--azul-escuro);
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -1px;
+  overflow-wrap: anywhere;
+}
+.resultado-financeiro {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid #e0e7f1;
+  background: #f8faff;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.resultado-financeiro h3 {
+  font-size: 15px;
+  font-weight: 500;
+}
+.detalhes-financeiros {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr);
+  gap: 12px 20px;
+  margin-top: 20px;
+}
+.detalhes-financeiros dt {
+  color: var(--texto-suave);
+}
+.detalhes-financeiros dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.confirmacao-financeira {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #526987;
+  margin-top: 18px;
+}
+.confirmacao-financeira input {
+  margin-top: 3px;
+}
+.acao-remover {
+  margin-top: 18px;
+  color: #a52a37;
+}
+.financeiro-conteudo > .mensagem-sucesso,
+.financeiro-conteudo > .mensagem-erro {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .detalhes-financeiros {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .detalhes-financeiros dd {
+    margin-bottom: 10px;
+  }
+  .resultado-financeiro {
+    padding: 16px;
+  }
+}

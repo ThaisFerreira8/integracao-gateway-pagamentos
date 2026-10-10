@@ -10,6 +10,10 @@ import LinksPagamento from "./pagamentos/LinksPagamento";
 import CheckoutPublico from "./pagamentos/CheckoutPublico";
 import Transacoes from "./pagamentos/Transacoes";
 import "./pagamentos/pagamentos.css";
+import Carteira from "./financeiro/Carteira";
+import Saques from "./financeiro/Saques";
+import Webhooks from "./financeiro/Webhooks";
+import "./financeiro/financeiro.css";
 
 const secoes = [
   "Visão geral",
@@ -177,10 +181,17 @@ function App() {
                   ? "Crie e acompanhe seus checkouts em um só lugar."
                   : secao === "Transações"
                     ? "Consulte os pedidos e as transações registrados na sua conta."
-                    : "Esta seção estará disponível nas próximas etapas."}
+                    : secao === "Carteira"
+                      ? "Consulte o saldo e o extrato da sua conta vinculada."
+                      : secao === "Saques"
+                        ? "Acompanhe os registros locais de saques."
+                        : "Administre as configurações de webhook da sua conta."}
             </p>
             {secao === "Links de pagamento" && <LinksPagamento />}
             {secao === "Transações" && <Transacoes />}
+            {secao === "Carteira" && <Carteira />}
+            {secao === "Saques" && <Saques />}
+            {secao === "Webhooks" && <Webhooks />}
             {secao === "Visão geral" && (
               <section className="inicio-conta">
                 <span className="inicio-simbolo" aria-hidden="true">
