@@ -14,6 +14,7 @@ import { EstadoPedido, Pedido } from '../pedidos/entities/pedido.entity';
 import { CheckoutPublicoController } from './checkout-publico.controller';
 import { CheckoutsController } from './checkouts.controller';
 import { CheckoutsService } from './checkouts.service';
+import { PagamentosGatewayService } from './pagamentos-gateway.service';
 import {
   ConsultaTaxasDto,
   CriarCheckoutDto,
@@ -195,7 +196,10 @@ describe('Checkouts e contratos confirmados de pagamentos', () => {
       usuarioAutenticado: { id: usuarioId },
       body: { usuarioId: randomUUID() },
     } as unknown as RequisicaoAutenticada;
-    await new CheckoutsController(servico).listar(requisicao);
+    await new CheckoutsController(
+      servico,
+      {} as PagamentosGatewayService,
+    ).listar(requisicao);
     expect(links.find).toHaveBeenCalledWith({
       where: { usuarioId },
       order: { criadoEm: 'DESC' },
@@ -203,9 +207,10 @@ describe('Checkouts e contratos confirmados de pagamentos', () => {
   });
 
   it('consulta pública utiliza somente o identificador público e não expõe o proprietário', async () => {
-    const resultado = await new CheckoutPublicoController(servico).consultar(
-      identificador,
-    );
+    const resultado = await new CheckoutPublicoController(
+      servico,
+      {} as PagamentosGatewayService,
+    ).consultar(identificador);
     expect(links.findOneBy).toHaveBeenCalledWith({
       identificadorPublico: identificador,
     });

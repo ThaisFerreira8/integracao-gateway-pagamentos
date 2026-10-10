@@ -14,8 +14,7 @@ export interface RetornoTaxasGateway {
   fees: TaxaGateway[];
 }
 
-// Contratos de entrada confirmados; respostas de pagamentos ainda não documentadas.
-// Não há execução de Pix/cartão até confirmar identificador, status e dados do Pix.
+// Contratos de entrada publicados; respostas observadas são validadas em contrato-transacao-gateway.
 export interface PagamentoPixGateway {
   amount: number;
   payerDocument: string;
