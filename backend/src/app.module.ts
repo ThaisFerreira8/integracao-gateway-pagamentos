@@ -8,6 +8,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CorrelacaoRequisicoesMiddleware } from './comum/middlewares/correlacao-requisicoes.middleware';
+import { AutenticacaoModule } from './autenticacao/autenticacao.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { CorrelacaoRequisicoesMiddleware } from './comum/middlewares/correlacao-
         synchronize: false,
       }),
     }),
+    AutenticacaoModule,
   ],
   controllers: [AppController],
   providers: [AppService],
