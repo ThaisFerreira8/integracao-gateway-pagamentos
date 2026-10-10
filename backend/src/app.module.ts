@@ -11,6 +11,7 @@ import { CorrelacaoRequisicoesMiddleware } from './comum/middlewares/correlacao-
 import { AutenticacaoModule } from './autenticacao/autenticacao.module';
 import { ContasGatewayModule } from './contas-gateway/contas-gateway.module';
 import { CheckoutsModule } from './checkouts/checkouts.module';
+import { PagamentosModule } from './pagamentos/pagamentos.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { CheckoutsModule } from './checkouts/checkouts.module';
     AutenticacaoModule,
     ContasGatewayModule,
     CheckoutsModule,
+    PagamentosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
