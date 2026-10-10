@@ -69,6 +69,17 @@ export class PagamentosGatewayService {
       .getRepository(LinkCheckout)
       .findOneBy({ identificadorPublico: identificador });
     if (!linkInicial) throw new NotFoundException('Checkout não encontrado.');
+    if (
+      cartao &&
+      linkInicial.taxaAplicadaPercentual != null &&
+      (linkInicial.bandeira !== cartao.bandeira ||
+        linkInicial.parcelas !== cartao.parcelas ||
+        Number(linkInicial.taxaAplicadaPercentual) !== campos.feePercent)
+    ) {
+      throw new ConflictException(
+        'A condição do cartão diverge da taxa registrada no link. Crie um novo link se a tabela mudou.',
+      );
+    }
     const token = await this.contas.obterToken(linkInicial.usuarioId);
     const reserva = await this.fonte.transaction(async (gerenciador) => {
       const link = await gerenciador.findOne(LinkCheckout, {

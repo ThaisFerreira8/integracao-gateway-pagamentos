@@ -176,6 +176,9 @@ describe('Execução financeira com reserva durável e gateway simulado', () => 
 
   it('usa taxa consultada e não persiste número do cartão ou CVV', async () => {
     link.metodo = MetodoPagamento.CARTAO;
+    link.bandeira = 'VISA';
+    link.parcelas = 1;
+    link.taxaAplicadaPercentual = '2.0000';
     await servico.pagarCartao('publico', {
       bandeira: 'VISA',
       parcelas: 1,
@@ -202,6 +205,26 @@ describe('Execução financeira com reserva durável e gateway simulado', () => 
     const persistido = JSON.stringify(gerenciador.save.mock.calls);
     expect(persistido).not.toContain('4111111111111111');
     expect(persistido).not.toContain('codigoSeguranca');
+  });
+
+  it('não envia pagamento quando a taxa atual diverge da condição registrada no link', async () => {
+    link.metodo = MetodoPagamento.CARTAO;
+    link.bandeira = 'VISA';
+    link.parcelas = 1;
+    link.taxaAplicadaPercentual = '1.0000';
+    await expect(
+      servico.pagarCartao('publico', {
+        bandeira: 'VISA',
+        parcelas: 1,
+        numeroCartao: '4111111111111111',
+        titularCartao: 'TESTE',
+        mesValidade: '12',
+        anoValidade: '2030',
+        codigoSeguranca: '123',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(gateway.requisitar).not.toHaveBeenCalled();
+    expect(fonte.transaction).not.toHaveBeenCalled();
   });
 
   it('conciliação recusa checkout de outro lojista antes de chamar gateway', async () => {

@@ -108,6 +108,39 @@ describe('Checkouts e contratos confirmados de pagamentos', () => {
     expect(contas.obterToken).not.toHaveBeenCalled();
   });
 
+  it('registra bandeira, parcelas e taxa da tabela ao criar o link de cartão', async () => {
+    const resultado = await servico.criar(usuarioId, {
+      ...entrada,
+      metodo: MetodoPagamento.CARTAO,
+      bandeira: 'VISA',
+      parcelas: 3,
+    });
+    expect(resultado).toMatchObject({
+      bandeira: 'VISA',
+      parcelas: 3,
+      taxaAplicadaPercentual: '3.1900',
+    });
+    expect(gateway.requisitar).toHaveBeenCalledWith('GET', '/fees?brand=VISA');
+  });
+
+  it('não cria cartão sem condição disponível nem aceita parcelas para Pix', async () => {
+    await expect(
+      servico.criar(usuarioId, { ...entrada, metodo: MetodoPagamento.CARTAO }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      servico.criar(usuarioId, {
+        ...entrada,
+        metodo: MetodoPagamento.CARTAO,
+        bandeira: 'VISA',
+        parcelas: 2,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      servico.criar(usuarioId, { ...entrada, parcelas: 3 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(fonte.transaction).not.toHaveBeenCalled();
+  });
+
   it.each([
     null,
     { total: 1, fees: [] },

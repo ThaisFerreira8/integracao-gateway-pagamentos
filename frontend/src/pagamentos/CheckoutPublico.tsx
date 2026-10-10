@@ -223,7 +223,17 @@ export default function CheckoutPublico({
                             Selecione a bandeira do cartão e as parcelas
                           </option>
                           {checkout.taxas?.map((taxa, indice) => (
-                            <option key={indice} value={indice}>
+                            <option
+                              key={indice}
+                              value={indice}
+                              disabled={
+                                checkout.taxaAplicadaPercentual !== null &&
+                                (taxa.bandeira !== checkout.bandeira ||
+                                  taxa.parcelas !== checkout.parcelas ||
+                                  taxa.taxaPercentual !==
+                                    Number(checkout.taxaAplicadaPercentual))
+                              }
+                            >
                               {taxa.bandeira} · {taxa.parcelas}x · taxa{" "}
                               {taxa.taxaPercentual.toLocaleString("pt-BR")}%
                             </option>
