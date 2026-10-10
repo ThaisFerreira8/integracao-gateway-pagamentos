@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
-import { listarSaques, consultarSaque, type SaqueLocal } from "../servicos/api";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  listarSaques,
+  consultarSaque,
+  solicitarSaque,
+  conciliarSaque,
+  reaisParaCentavos,
+  type SaqueLocal,
+} from "../servicos/api";
 
 const moeda = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -12,6 +19,68 @@ export default function Saques() {
   const [selecionado, definirSelecionado] = useState<SaqueLocal | null>(null);
   const [erroDetalhe, definirErroDetalhe] = useState("");
   const [consultando, definirConsultando] = useState(false);
+  const [enviando, definirEnviando] = useState(false);
+  const trava = useRef(false);
+  const [mensagem, definirMensagem] = useState("");
+  const [erroSolicitacao, definirErroSolicitacao] = useState("");
+
+  async function solicitar(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (trava.current) return;
+    const formulario = evento.currentTarget;
+    const dados = new FormData(formulario);
+    definirErroSolicitacao("");
+    definirMensagem("");
+    try {
+      const entrada = {
+        valorCentavos: reaisParaCentavos(String(dados.get("valor"))),
+        chavePix: String(dados.get("chavePix") ?? "").trim(),
+        documentoTitular: String(dados.get("documentoTitular") ?? ""),
+        descricao: String(dados.get("descricao") ?? "").trim() || undefined,
+      };
+      trava.current = true;
+      definirEnviando(true);
+      // Não retém chave Pix ou documento no estado da interface.
+      formulario.reset();
+      const saque = await solicitarSaque(entrada);
+      atualizar();
+      definirSelecionado(saque);
+      definirMensagem(`Solicitação registrada. Estado: ${saque.estado}.`);
+    } catch (falha) {
+      definirErroSolicitacao(
+        (falha instanceof Error
+          ? falha.message
+          : "Não foi possível confirmar a solicitação.") +
+          " Confira a listagem antes de tentar novamente.",
+      );
+      atualizar();
+    } finally {
+      trava.current = false;
+      definirEnviando(false);
+    }
+  }
+
+  async function conciliar(id: string) {
+    if (consultando || enviando) return;
+    definirConsultando(true);
+    definirErroDetalhe("");
+    try {
+      const saque = await conciliarSaque(id);
+      definirSelecionado(saque);
+      definirSaques(
+        (anteriores) =>
+          anteriores?.map((item) => (item.id === id ? saque : item)) ?? null,
+      );
+    } catch (falha) {
+      definirErroDetalhe(
+        falha instanceof Error
+          ? falha.message
+          : "Não foi possível atualizar o status.",
+      );
+    } finally {
+      definirConsultando(false);
+    }
+  }
   useEffect(() => {
     let atual = true;
     listarSaques()
@@ -56,10 +125,68 @@ export default function Saques() {
   }
   return (
     <div className="financeiro-conteudo">
-      <p className="aviso-pagamentos">
-        Esta tela consulta somente saques registrados localmente. A solicitação
-        e a conciliação externa estão disponíveis pela API privada de saques.
-      </p>
+      <section
+        className="painel-pagamentos"
+        aria-labelledby="titulo-solicitar-saque"
+      >
+        <h2 id="titulo-solicitar-saque">Solicitar saque</h2>
+        <form onSubmit={solicitar} aria-busy={enviando}>
+          <fieldset disabled={enviando || consultando}>
+            <div className="grade-formulario">
+              <div className="campo">
+                <label htmlFor="valor-saque">Valor em reais</label>
+                <input
+                  id="valor-saque"
+                  name="valor"
+                  inputMode="decimal"
+                  maxLength={20}
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+              <div className="campo">
+                <label htmlFor="chave-saque">Chave Pix</label>
+                <input
+                  id="chave-saque"
+                  name="chavePix"
+                  maxLength={254}
+                  autoComplete="off"
+                  required
+                />
+              </div>
+              <div className="campo">
+                <label htmlFor="cpf-saque">CPF do titular (11 dígitos)</label>
+                <input
+                  id="cpf-saque"
+                  name="documentoTitular"
+                  inputMode="numeric"
+                  pattern="[0-9]{11}"
+                  maxLength={11}
+                  autoComplete="off"
+                  required
+                />
+              </div>
+              <div className="campo">
+                <label htmlFor="descricao-saque">Descrição (opcional)</label>
+                <input id="descricao-saque" name="descricao" maxLength={255} />
+              </div>
+            </div>
+            <button className="botao-principal acao-compacta" type="submit">
+              {enviando ? "Solicitando…" : "Solicitar saque"}
+            </button>
+          </fieldset>
+        </form>
+        {erroSolicitacao && (
+          <p className="mensagem-erro" role="alert">
+            {erroSolicitacao}
+          </p>
+        )}
+        {mensagem && (
+          <p className="mensagem-sucesso" role="status">
+            {mensagem}
+          </p>
+        )}
+      </section>
       <section className="painel-pagamentos" aria-labelledby="titulo-saques">
         <div className="titulo-painel">
           <h2 id="titulo-saques">Saques locais</h2>
@@ -113,6 +240,13 @@ export default function Saques() {
                         disabled={consultando}
                       >
                         Consultar detalhes
+                      </button>
+                      <button
+                        className="botao-texto"
+                        onClick={() => void conciliar(saque.id)}
+                        disabled={consultando || enviando}
+                      >
+                        Consultar status externo
                       </button>
                     </td>
                   </tr>

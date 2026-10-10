@@ -581,6 +581,8 @@ export async function criarLink(entrada: {
   valorCentavos: number;
   metodo: MetodoPagamento;
   expiraEm: string;
+  bandeira?: TaxaDisponivel["bandeira"];
+  parcelas?: number;
 }): Promise<LinkPagamento> {
   if (
     !inteiro(entrada.valorCentavos) ||
@@ -597,8 +599,51 @@ export async function criarLink(entrada: {
       valorCentavos: entrada.valorCentavos,
       metodo: entrada.metodo,
       expiraEm: entrada.expiraEm,
+      ...(entrada.metodo === "CARTAO"
+        ? { bandeira: entrada.bandeira, parcelas: entrada.parcelas }
+        : {}),
     }),
   );
+}
+
+export async function solicitarSaque(entrada: {
+  valorCentavos: number;
+  chavePix: string;
+  documentoTitular: string;
+  descricao?: string;
+}): Promise<SaqueLocal> {
+  if (
+    !inteiro(entrada.valorCentavos) ||
+    entrada.valorCentavos < 1 ||
+    entrada.valorCentavos > 4294967295 ||
+    !entrada.chavePix.trim() ||
+    entrada.chavePix.length > 254 ||
+    !/^\d{11}$/.test(entrada.documentoTitular) ||
+    (entrada.descricao !== undefined && entrada.descricao.length > 255)
+  )
+    throw new Error("Confira o valor, a chave Pix, o CPF e a descrição.");
+  return lerSaque(
+    await requisitar("/saques", {
+      valorCentavos: entrada.valorCentavos,
+      chavePix: entrada.chavePix,
+      documentoTitular: entrada.documentoTitular,
+      ...(entrada.descricao ? { descricao: entrada.descricao } : {}),
+    }),
+  );
+}
+
+export async function conciliarSaque(id: string): Promise<SaqueLocal> {
+  if (!identificadorValido(id)) throw inesperada();
+  const saque = lerSaque(
+    await requisitar(
+      "/saques/" + encodeURIComponent(id) + "/conciliar",
+      undefined,
+      true,
+      "POST",
+    ),
+  );
+  if (saque.id !== id) throw inesperada();
+  return saque;
 }
 
 export async function consultarTaxas(
