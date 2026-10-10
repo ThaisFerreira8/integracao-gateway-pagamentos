@@ -13,6 +13,7 @@ import { ContasGatewayModule } from './contas-gateway/contas-gateway.module';
 import { CheckoutsModule } from './checkouts/checkouts.module';
 import { PagamentosModule } from './pagamentos/pagamentos.module';
 import { CarteiraModule } from './carteira/carteira.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CarteiraModule } from './carteira/carteira.module';
     CheckoutsModule,
     PagamentosModule,
     CarteiraModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
