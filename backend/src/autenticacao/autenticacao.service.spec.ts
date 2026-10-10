@@ -7,7 +7,9 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { QueryFailedError } from 'typeorm';
+import { CHAVE_ROTA_PUBLICA } from './decoradores/rota-publica.decorator';
 import request from 'supertest';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { AutenticacaoController } from './autenticacao.controller';
@@ -31,6 +33,11 @@ describe('Autenticação de lojistas', () => {
   };
   const repositorio = {
     createQueryBuilder: jest.fn().mockReturnValue(consulta),
+    findOneBy: jest.fn(),
+    create: jest.fn((dados: Partial<Usuario>) =>
+      Object.assign(new Usuario(), dados),
+    ),
+    save: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -69,6 +76,12 @@ describe('Autenticação de lojistas', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     consulta.getOne.mockResolvedValue(usuario);
+    repositorio.findOneBy.mockReset().mockResolvedValue(null);
+    repositorio.save
+      .mockReset()
+      .mockImplementation(async (dados: Usuario) =>
+        Object.assign(new Usuario(), dados, { id: randomUUID() }),
+      );
   });
 
   afterAll(async () => {
@@ -81,6 +94,111 @@ describe('Autenticação de lojistas', () => {
     expect(primeiro).not.toBe(segundo);
     expect(primeiro).toMatch(/^scrypt:[0-9a-f]{32}:[0-9a-f]{128}$/);
     expect(primeiro).not.toContain('senha-ficticia');
+  });
+
+  it('cadastro público normaliza dados, persiste hash e permite login sem criar conta no gateway', async () => {
+    expect(
+      Reflect.getMetadata(
+        CHAVE_ROTA_PUBLICA,
+        AutenticacaoController.prototype.cadastrar,
+      ),
+    ).toBe(true);
+    const resposta = await request(aplicacao.getHttpServer())
+      .post('/autenticacao/cadastro')
+      .send({
+        nome: '  Lojista Novo  ',
+        email: '  NOVO@example.com  ',
+        senha: 'senha-ficticia',
+      })
+      .expect(201);
+    expect(Object.keys(resposta.body).sort()).toEqual(['email', 'id', 'nome']);
+    expect(resposta.body).toMatchObject({
+      nome: 'Lojista Novo',
+      email: 'novo@example.com',
+    });
+    expect(repositorio.findOneBy).toHaveBeenCalledWith({
+      email: 'novo@example.com',
+    });
+    const criado = repositorio.save.mock.calls[0][0] as Usuario;
+    expect(criado.senhaHash).toMatch(/^scrypt:[0-9a-f]{32}:[0-9a-f]{128}$/);
+    expect(JSON.stringify(resposta.body)).not.toContain('senha');
+    consulta.getOne.mockResolvedValue({ ...criado, id: resposta.body.id });
+    const login = await request(aplicacao.getHttpServer())
+      .post('/autenticacao/login')
+      .send({ email: 'novo@example.com', senha: 'senha-ficticia' })
+      .expect(200);
+    expect((await jwt.verifyAsync(login.body.tokenAcesso)).sub).toBe(
+      resposta.body.id,
+    );
+  });
+
+  it('rejeita e-mail já cadastrado antes de persistir', async () => {
+    repositorio.findOneBy.mockResolvedValueOnce(usuario);
+    await request(aplicacao.getHttpServer())
+      .post('/autenticacao/cadastro')
+      .send({
+        nome: 'Novo Lojista',
+        email: usuario.email,
+        senha: 'senha-ficticia',
+      })
+      .expect(409);
+    expect(repositorio.create).not.toHaveBeenCalled();
+    expect(repositorio.save).not.toHaveBeenCalled();
+  });
+
+  it('trata duplicidade concorrente sem expor erro SQL ou hash', async () => {
+    repositorio.save.mockRejectedValueOnce(
+      new QueryFailedError(
+        'SQL-NAO-EXIBIR',
+        [],
+        Object.assign(new Error('NAO-EXIBIR'), { code: 'ER_DUP_ENTRY' }),
+      ),
+    );
+    const resposta = await request(aplicacao.getHttpServer())
+      .post('/autenticacao/cadastro')
+      .send({
+        nome: 'Novo Lojista',
+        email: 'novo@example.com',
+        senha: 'senha-ficticia',
+      })
+      .expect(409);
+    expect(resposta.body.message).toBe('Este e-mail já possui uma conta.');
+    expect(JSON.stringify(resposta.body)).not.toContain('NAO-EXIBIR');
+  });
+
+  it('falha de persistência retorna mensagem segura', async () => {
+    repositorio.save.mockRejectedValueOnce(new Error('senhaHash=NAO-EXIBIR'));
+    const resposta = await request(aplicacao.getHttpServer())
+      .post('/autenticacao/cadastro')
+      .send({
+        nome: 'Novo Lojista',
+        email: 'novo@example.com',
+        senha: 'senha-ficticia',
+      })
+      .expect(500);
+    expect(resposta.body.message).toBe('Não foi possível criar sua conta.');
+    expect(JSON.stringify(resposta.body)).not.toContain('NAO-EXIBIR');
+  });
+
+  it.each([
+    { nome: ' ' },
+    { email: 'inválido' },
+    { senha: 'curta' },
+    { senha: 'a'.repeat(129) },
+    { usuarioId: 'outro' },
+    { administrador: true },
+  ])('rejeita entrada inválida no cadastro (%j)', async (alteracao) => {
+    await request(aplicacao.getHttpServer())
+      .post('/autenticacao/cadastro')
+      .send({
+        nome: 'Novo Lojista',
+        email: 'novo@example.com',
+        senha: 'senha-ficticia',
+        ...alteracao,
+      })
+      .expect(400);
+    expect(repositorio.findOneBy).not.toHaveBeenCalled();
+    expect(repositorio.save).not.toHaveBeenCalled();
   });
 
   it('autentica por HTTP e emite token verificável com duração e usuário corretos', async () => {
