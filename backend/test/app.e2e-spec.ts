@@ -17,6 +17,9 @@ import { WebhooksService } from '../src/webhooks/webhooks.service';
 import { CheckoutPublicoController } from '../src/checkouts/checkout-publico.controller';
 import { CheckoutsService } from '../src/checkouts/checkouts.service';
 import { PagamentosGatewayService } from '../src/checkouts/pagamentos-gateway.service';
+import { SaquesController } from '../src/saques/saques.controller';
+import { SaquesService } from '../src/saques/saques.service';
+import { CheckoutsController } from '../src/checkouts/checkouts.controller';
 
 describe('Rotas financeiras HTTP com autenticação real e serviços simulados', () => {
   let aplicacao: INestApplication;
@@ -29,7 +32,13 @@ describe('Rotas financeiras HTTP com autenticação real e serviços simulados',
     configurar: jest.fn(),
     remover: jest.fn(),
   };
-  const checkouts = { consultarPublico: jest.fn() };
+  const checkouts = { consultarPublico: jest.fn(), criar: jest.fn() };
+  const saques = {
+    solicitar: jest.fn(),
+    listar: jest.fn(),
+    consultar: jest.fn(),
+    consultarExterno: jest.fn(),
+  };
 
   beforeAll(async () => {
     // Não importa AppModule: os testes não abrem conexão com MySQL nem chamam o gateway.
@@ -42,6 +51,8 @@ describe('Rotas financeiras HTTP com autenticação real e serviços simulados',
         CarteiraController,
         WebhooksController,
         CheckoutPublicoController,
+        CheckoutsController,
+        SaquesController,
       ],
       providers: [
         { provide: JwtService, useValue: jwt },
@@ -57,6 +68,7 @@ describe('Rotas financeiras HTTP com autenticação real e serviços simulados',
         { provide: CarteiraService, useValue: carteira },
         { provide: WebhooksService, useValue: webhooks },
         { provide: CheckoutsService, useValue: checkouts },
+        { provide: SaquesService, useValue: saques },
         { provide: PagamentosGatewayService, useValue: {} },
       ],
     }).compile();
@@ -111,6 +123,71 @@ describe('Rotas financeiras HTTP com autenticação real e serviços simulados',
       .set('Authorization', 'Bearer ' + token)
       .expect(200);
     expect(carteira.consultar).toHaveBeenCalledWith(usuarioId);
+  });
+
+  it('solicita e concilia saque com identidade do JWT e rejeita proprietário fornecido no corpo', async () => {
+    const entrada = {
+      valorCentavos: 1234,
+      chavePix: 'chave-ficticia',
+      documentoTitular: '12345678901',
+      descricao: 'Teste com mock',
+    };
+    saques.solicitar.mockResolvedValue({ id: identificador });
+    saques.consultarExterno.mockResolvedValue({
+      id: identificador,
+      estado: 'APROVADO',
+    });
+    await request(aplicacao.getHttpServer())
+      .post('/saques')
+      .send(entrada)
+      .expect(401);
+    await request(aplicacao.getHttpServer())
+      .post('/saques')
+      .set('Authorization', 'Bearer ' + token)
+      .send({ ...entrada, usuarioId: 'outro' })
+      .expect(400);
+    await request(aplicacao.getHttpServer())
+      .post('/saques')
+      .set('Authorization', 'Bearer ' + token)
+      .send(entrada)
+      .expect(201);
+    expect(saques.solicitar).toHaveBeenCalledWith(
+      usuarioId,
+      expect.objectContaining(entrada),
+    );
+    await request(aplicacao.getHttpServer())
+      .post(`/saques/${identificador}/conciliar`)
+      .set('Authorization', 'Bearer ' + token)
+      .expect(201);
+    expect(saques.consultarExterno).toHaveBeenCalledWith(
+      usuarioId,
+      identificador,
+    );
+  });
+
+  it('aceita seleção de parcelas no link e rejeita taxa arbitrária enviada pelo frontend', async () => {
+    const entrada = {
+      valorCentavos: 100,
+      metodo: 'CARTAO',
+      bandeira: 'VISA',
+      parcelas: 3,
+      expiraEm: '2099-01-01T00:00:00.000Z',
+    };
+    checkouts.criar.mockResolvedValue({ taxaAplicadaPercentual: '3.1900' });
+    await request(aplicacao.getHttpServer())
+      .post('/checkouts')
+      .set('Authorization', 'Bearer ' + token)
+      .send({ ...entrada, feePercent: 0 })
+      .expect(400);
+    await request(aplicacao.getHttpServer())
+      .post('/checkouts')
+      .set('Authorization', 'Bearer ' + token)
+      .send(entrada)
+      .expect(201);
+    expect(checkouts.criar).toHaveBeenCalledWith(
+      usuarioId,
+      expect.objectContaining(entrada),
+    );
   });
 
   it('não aceita usuarioId em filtros de extrato', async () => {
