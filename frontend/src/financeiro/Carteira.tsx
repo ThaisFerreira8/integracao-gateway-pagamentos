@@ -162,7 +162,9 @@ export default function Carteira() {
           </fieldset>
         </form>
         <p className="texto-auxiliar">
-          Não há paginação nem consolidação com registros locais nesta consulta.
+          Extrato consolidado com registros locais e do gateway, sem paginação.
+          Operações confirmadas no gateway usam o estado externo; registros sem
+          correspondência segura permanecem separados.
         </p>
         {erroExtrato && (
           <p className="mensagem-erro" role="alert">

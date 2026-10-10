@@ -10,6 +10,7 @@ import type { RequisicaoAutenticada } from '../autenticacao/guards/autenticacao.
 import { ContasGatewayService } from '../contas-gateway/contas-gateway.service';
 import { GatewayHttpService } from '../contas-gateway/gateway-http.service';
 import { Saque } from '../saques/entities/saque.entity';
+import { Transacao } from '../transacoes/entities/transacao.entity';
 import { SaquesController } from '../saques/saques.controller';
 import { SaquesService } from '../saques/saques.service';
 import { CarteiraController } from './carteira.controller';
@@ -28,6 +29,10 @@ describe('Carteira, extrato e consultas locais de saques', () => {
   const carteira = new CarteiraService(
     contas as unknown as ContasGatewayService,
     gateway as unknown as GatewayHttpService,
+    {
+      find: jest.fn().mockResolvedValue([]),
+    } as unknown as Repository<Transacao>,
+    { find: jest.fn().mockResolvedValue([]) } as unknown as Repository<Saque>,
   );
   const saques = new SaquesService(
     repositorio as unknown as Repository<Saque>,

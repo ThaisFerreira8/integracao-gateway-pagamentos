@@ -22,9 +22,9 @@ export class CarteiraController {
 
   @Get('extrato')
   @ApiOperation({
-    summary: 'Consultar extrato do gateway com filtros documentados',
+    summary: 'Consultar extrato consolidado do lojista com filtros',
     description:
-      'Sem page, offset, cursor ou consolidação local. Retorna somente campos comprovados dos itens, sem metadados sensíveis.',
+      'Consolida registros locais e externos por identificador ou referência única. O estado externo prevalece quando há correspondência comprovada. Sem page, offset ou cursor; limit restringe o resultado consolidado e a consulta externa. Não altera registros locais.',
   })
   consultarExtrato(
     @Req() requisicao: RequisicaoAutenticada,
